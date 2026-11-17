@@ -1,5 +1,0 @@
-// ใช้ Student API เป็นจุดเข้าสู่ระบบกลาง แล้วส่งโทเคนแบบลงลายเซ็นไปยังเว็บปลายทาง
-const API_URL = 'PASTE_YOUR_STUDENT_API_WEB_APP_URL_HERE';
-const TEACHER_URL = 'PASTE_YOUR_TEACHER_WEBSITE_URL_HERE';
-const STUDENT_URL = 'PASTE_YOUR_STUDENT_WEBSITE_URL_HERE';
-const STATUS_URL = 'PASTE_YOUR_STATUS_WEBSITE_URL_HERE';
