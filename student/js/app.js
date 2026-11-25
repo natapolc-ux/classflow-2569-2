@@ -339,7 +339,12 @@ function renderWorksheetAnswerSummary(assignment, submission) {
   const answers = parseWorksheetAnswers(submission);
   if (!schema.questions.length || !Object.keys(answers).length) return '';
   return `<div class="worksheet-answer-summary"><h4>คำตอบใบงานออนไลน์</h4>${schema.questions.map((q, index) => {
-    const value = Array.isArray(answers[q.id]) ? answers[q.id].join(', ') : String(answers[q.id] ?? '').trim();
+    const rawValue = answers[q.id];
+    const value = Array.isArray(rawValue)
+      ? rawValue.join(', ')
+      : (rawValue && typeof rawValue === 'object')
+        ? (Array.isArray(rawValue.names) ? rawValue.names.join(', ') : String(rawValue.text || rawValue.url || rawValue.name || '').trim())
+        : String(rawValue ?? '').trim();
     return `<div class="worksheet-answer-row"><b>${index + 1}. ${escapeHtml(q.label)}</b><div>${value ? escapeHtml(value).replace(/\n/g, '<br>') : '<span class="answer-empty">ไม่ได้ตอบ</span>'}</div></div>`;
   }).join('')}</div>`;
 }
@@ -526,7 +531,7 @@ function renderAssignmentsPage() {
   `;
   syncToolbarHeight();
   const list = state.assignments.filter(a => (!state.selectedLevel || a.Level === state.selectedLevel) && (!state.selectedAssignment || a.AssignmentID === state.selectedAssignment));
-  $('content').innerHTML = `<div class="card-list">${list.map(renderAssignmentCard).join('') || '<div class="hero-empty">ยังไม่มีงานในเงื่อนไขนี้</div>'}</div>`;
+  $('content').innerHTML = `<div class="card-list">${list.map(renderAssignmentCard).join('') || '<div class="hero-empty"></div>'}</div>`;
 }
 
 function renderAssignmentCard(a) {
@@ -667,14 +672,14 @@ function addWorksheetQuestion(q={}) {
   const box = document.createElement('div');
   box.className = 'question-builder-row';
   box.dataset.questionId = q.id || `Q${Date.now()}${Math.floor(Math.random()*1000)}`;
-  box.innerHTML = `<label>คำถาม<input class="qb-label" value="${escapeHtml(q.label || '')}" placeholder="เช่น เป็นเทคโนโลยีหรือไม่"></label><label>ชนิด<select class="qb-type" onchange="this.closest('.question-builder-row').querySelector('.qb-options-wrap').classList.toggle('hidden', !['radio','checkbox'].includes(this.value))"><option value="short" ${q.type==='short'?'selected':''}>ข้อความสั้น</option><option value="long" ${!q.type||q.type==='long'?'selected':''}>ข้อความยาว</option><option value="radio" ${q.type==='radio'?'selected':''}>เลือกได้ 1 คำตอบ</option><option value="checkbox" ${q.type==='checkbox'?'selected':''}>เลือกได้หลายคำตอบ</option><option value="number" ${q.type==='number'?'selected':''}>ตัวเลข</option></select></label><label class="qb-options-wrap ${['radio','checkbox'].includes(q.type)?'':'hidden'}">ตัวเลือก (คั่นด้วย |)<input class="qb-options" value="${escapeHtml((q.options || []).join(' | '))}" placeholder="เป็น | ไม่เป็น"></label><label class="inline-check"><input class="qb-required" type="checkbox" ${q.required?'checked':''}> บังคับตอบ</label><button type="button" class="danger" onclick="this.closest('.question-builder-row').remove()">ลบข้อนี้</button>`;
+  box.innerHTML = `<label>คำถาม<input class="qb-label" value="${escapeHtml(q.label || '')}" placeholder="เช่น เป็นเทคโนโลยีหรือไม่"></label><label>ชนิด<select class="qb-type" onchange="this.closest('.question-builder-row').querySelector('.qb-options-wrap').classList.toggle('hidden', !['radio','checkbox'].includes(this.value))"><option value="short" ${q.type==='short'?'selected':''}>ข้อความสั้น</option><option value="long" ${!q.type||q.type==='long'?'selected':''}>ข้อความยาว</option><option value="radio" ${q.type==='radio'?'selected':''}>เลือกได้ 1 คำตอบ</option><option value="checkbox" ${q.type==='checkbox'?'selected':''}>เลือกได้หลายคำตอบ</option><option value="number" ${q.type==='number'?'selected':''}>ตัวเลข</option><option value="file" ${q.type==='file'?'selected':''}>แนบไฟล์</option></select></label><label class="qb-options-wrap ${['radio','checkbox'].includes(q.type)?'':'hidden'}">ตัวเลือก (คั่นด้วย |)<input class="qb-options" value="${escapeHtml((q.options || []).join(' | '))}" placeholder="เป็น | ไม่เป็น"></label><label class="qb-worksheet-url">ไฟล์ใบงานคำถามย่อย (ไม่บังคับ)<input class="qb-worksheet-url-input" value="${escapeHtml(q.worksheetURL || q.WorksheetURL || '')}" placeholder="https://drive.google.com/..."></label><label class="inline-check"><input class="qb-required" type="checkbox" ${q.required?'checked':''}> บังคับตอบ</label><button type="button" class="danger" onclick="this.closest('.question-builder-row').remove()">ลบข้อนี้</button>`;
   $('aeQuestions')?.appendChild(box);
 }
 
 async function saveAssignmentEditor(assignmentId='') {
   const classes = Array.from(document.querySelectorAll('[name="assignmentClass"]:checked')).map(x => x.value);
   const mode = $('aeMode').value;
-  const questions = Array.from(document.querySelectorAll('.question-builder-row')).map(row => ({ id: row.dataset.questionId, label: row.querySelector('.qb-label').value.trim(), type: row.querySelector('.qb-type').value, options: row.querySelector('.qb-options').value.split('|').map(x => x.trim()).filter(Boolean), required: row.querySelector('.qb-required').checked }));
+  const questions = Array.from(document.querySelectorAll('.question-builder-row')).map(row => ({ id: row.dataset.questionId, label: row.querySelector('.qb-label').value.trim(), type: row.querySelector('.qb-type').value, options: row.querySelector('.qb-options').value.split('|').map(x => x.trim()).filter(Boolean), worksheetURL: row.querySelector('.qb-worksheet-url-input')?.value.trim() || '', required: row.querySelector('.qb-required').checked }));
   const existingAssignment = assignmentId ? getAssignment(assignmentId) : null;
   const workType = $('aeWorkType').value;
   const assignment = { Level: $('aeLevel').value, Topic: $('aeTopic').value.trim(), FullScore: $('aeFullScore').value, WorkType: workType, GroupMode: workType === 'งานเดี่ยว' ? 'ไม่ใช้กลุ่ม' : $('aeGroupMode').value, MaxGroupMembers: workType === 'งานเดี่ยว' ? '' : $('aeMaxGroupMembers').value, AssignedClasses: classes.join(','), Description: $('aeDescription').value.trim(), WorksheetURL: $('aeWorksheetURL').value.trim(), WorksheetVisible: true, AssignmentMode: mode, InstructionType: mode === 'ใบงานออนไลน์' ? 'ใบงานออนไลน์' : ($('aeWorksheetURL').value.trim() ? 'ข้อความและไฟล์' : 'ข้อความ'), WorksheetSchema: mode === 'ใบงานออนไลน์' ? JSON.stringify({version:1, questions}) : '' };
@@ -1985,8 +1990,10 @@ function renderOnlineWorksheetForm(a, submission, enabled) {
     if (q.type === 'long') input = `<textarea data-question-id="${escapeHtml(q.id)}" ${disabled}>${escapeHtml(value || '')}</textarea>`;
     else if (q.type === 'radio') input = `<div class="answer-options">${(q.options || []).map(opt => `<label><input type="radio" name="answer_${escapeHtml(a.AssignmentID)}_${escapeHtml(q.id)}" data-question-id="${escapeHtml(q.id)}" value="${escapeHtml(opt)}" ${String(value||'')===String(opt)?'checked':''} ${disabled}> ${escapeHtml(opt)}</label>`).join('')}</div>`;
     else if (q.type === 'checkbox') input = `<div class="answer-options">${(q.options || []).map(opt => `<label><input type="checkbox" data-question-id="${escapeHtml(q.id)}" value="${escapeHtml(opt)}" ${Array.isArray(value)&&value.includes(opt)?'checked':''} ${disabled}> ${escapeHtml(opt)}</label>`).join('')}</div>`;
+    else if (q.type === 'file') input = `<input type="file" multiple data-question-id="${escapeHtml(q.id)}" data-question-label="${escapeHtml(q.label)}" ${disabled}>`;
     else input = `<input type="${q.type === 'number' ? 'number' : 'text'}" data-question-id="${escapeHtml(q.id)}" value="${escapeHtml(value || '')}" ${disabled}>`;
-    return `<div class="online-question" data-question-type="${escapeHtml(q.type)}"><label><b>${index + 1}. ${escapeHtml(q.label)} ${required}</b>${input}</label></div>`;
+    const worksheetLink = q.worksheetURL ? `<a class="worksheet-question-link" href="${escapeHtml(q.worksheetURL)}" target="_blank" rel="noopener">เปิดไฟล์ใบงานคำถามนี้</a>` : '';
+    return `<div class="online-question" data-question-type="${escapeHtml(q.type)}"><label><b>${index + 1}. ${escapeHtml(q.label)} ${required}</b>${worksheetLink}${input}</label></div>`;
   }).join('')}</div>`;
 }
 
@@ -2000,9 +2007,26 @@ function collectWorksheetAnswers(assignmentId) {
     const id = inputs[0].dataset.questionId;
     if (question.dataset.questionType === 'checkbox') answers[id] = inputs.filter(input => input.checked).map(input => input.value);
     else if (question.dataset.questionType === 'radio') answers[id] = inputs.find(input => input.checked)?.value || '';
+    else if (question.dataset.questionType === 'file') answers[id] = { type: 'file', names: Array.from(inputs[0].files || []).map(file => file.name) };
     else answers[id] = inputs[0].value;
   });
   return answers;
+}
+
+async function collectWorksheetAnswerFiles(assignmentId) {
+  const root = document.querySelector(`.online-worksheet-form[data-assignment-id="${CSS.escape(String(assignmentId))}"]`);
+  if (!root) return [];
+  const files = [];
+  for (const question of Array.from(root.querySelectorAll('.online-question[data-question-type="file"]'))) {
+    const input = question.querySelector('input[type="file"][data-question-id]');
+    if (!input) continue;
+    const selectedFiles = validateStudentUploadFiles(input.files);
+    for (const file of selectedFiles) {
+      const payload = await fileToPayload(file);
+      files.push({ ...payload, questionId: input.dataset.questionId, questionLabel: input.dataset.questionLabel || '' });
+    }
+  }
+  return files;
 }
 
 function toggleStudentWorkPreview(assignmentId) {
@@ -2074,6 +2098,21 @@ async function submitStudentWork(assignmentId) {
     }
     const workText = online ? '' : ($(`workText_${assignmentId}`)?.value || '');
     const worksheetAnswers = online ? collectWorksheetAnswers(assignmentId) : null;
+    if (online) {
+      const schema = parseWorksheetSchema(assignment);
+      for (const question of schema.questions) {
+        if (!question.required) continue;
+        const value = worksheetAnswers[question.id];
+        const answered = question.type === 'checkbox'
+          ? Array.isArray(value) && value.length
+          : question.type === 'file'
+            ? value?.names?.length
+            : String(value ?? '').trim();
+        if (!answered) return showToast(`กรุณาตอบคำถามที่บังคับ: ${question.label}`);
+      }
+      const worksheetFiles = await collectWorksheetAnswerFiles(assignmentId);
+      files.push(...worksheetFiles);
+    }
     if (!online && !String(workText || '').trim() && !files.length) return showToast('กรุณาพิมพ์คำตอบหรือแนบไฟล์ก่อนส่งงาน');
     const submitMode = assignment.WorkType === 'งานกลุ่ม' ? 'กลุ่ม' : (assignment.WorkType === 'เลือกส่ง' ? ($(`submitMode_${assignmentId}`)?.value || 'เดี่ยว') : 'เดี่ยว');
     showToast('กำลังอัปโหลดและบันทึกงาน กรุณาอย่าปิดหน้านี้...', { persistent: true, loading: true });
