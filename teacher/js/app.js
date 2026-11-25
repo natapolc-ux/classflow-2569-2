@@ -234,7 +234,8 @@ function toggleSidebar() {
 
 function switchPage(page) {
   state.currentPage = page;
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+  const navPage = page === 'duplicates' ? 'settings' : page;
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === navPage));
   $('pageTitle').textContent = PAGE_TITLES[page] || page;
   renderCurrentPage();
 }
@@ -339,7 +340,12 @@ function renderWorksheetAnswerSummary(assignment, submission) {
   const answers = parseWorksheetAnswers(submission);
   if (!schema.questions.length || !Object.keys(answers).length) return '';
   return `<div class="worksheet-answer-summary"><h4>คำตอบใบงานออนไลน์</h4>${schema.questions.map((q, index) => {
-    const value = Array.isArray(answers[q.id]) ? answers[q.id].join(', ') : String(answers[q.id] ?? '').trim();
+    const rawValue = answers[q.id];
+    const value = Array.isArray(rawValue)
+      ? rawValue.join(', ')
+      : (rawValue && typeof rawValue === 'object')
+        ? (Array.isArray(rawValue.names) ? rawValue.names.join(', ') : String(rawValue.text || rawValue.url || rawValue.name || '').trim())
+        : String(rawValue ?? '').trim();
     return `<div class="worksheet-answer-row"><b>${index + 1}. ${escapeHtml(q.label)}</b><div>${value ? escapeHtml(value).replace(/\n/g, '<br>') : '<span class="answer-empty">ไม่ได้ตอบ</span>'}</div></div>`;
   }).join('')}</div>`;
 }
@@ -526,7 +532,7 @@ function renderAssignmentsPage() {
   `;
   syncToolbarHeight();
   const list = state.assignments.filter(a => (!state.selectedLevel || a.Level === state.selectedLevel) && (!state.selectedAssignment || a.AssignmentID === state.selectedAssignment));
-  $('content').innerHTML = `<div class="card-list">${list.map(renderAssignmentCard).join('') || '<div class="hero-empty">ยังไม่มีงานในเงื่อนไขนี้</div>'}</div>`;
+  $('content').innerHTML = `<div class="card-list">${list.map(renderAssignmentCard).join('') || '<div class="hero-empty"></div>'}</div>`;
 }
 
 function renderAssignmentCard(a) {
@@ -667,14 +673,14 @@ function addWorksheetQuestion(q={}) {
   const box = document.createElement('div');
   box.className = 'question-builder-row';
   box.dataset.questionId = q.id || `Q${Date.now()}${Math.floor(Math.random()*1000)}`;
-  box.innerHTML = `<label>คำถาม<input class="qb-label" value="${escapeHtml(q.label || '')}" placeholder="เช่น เป็นเทคโนโลยีหรือไม่"></label><label>ชนิด<select class="qb-type" onchange="this.closest('.question-builder-row').querySelector('.qb-options-wrap').classList.toggle('hidden', !['radio','checkbox'].includes(this.value))"><option value="short" ${q.type==='short'?'selected':''}>ข้อความสั้น</option><option value="long" ${!q.type||q.type==='long'?'selected':''}>ข้อความยาว</option><option value="radio" ${q.type==='radio'?'selected':''}>เลือกได้ 1 คำตอบ</option><option value="checkbox" ${q.type==='checkbox'?'selected':''}>เลือกได้หลายคำตอบ</option><option value="number" ${q.type==='number'?'selected':''}>ตัวเลข</option></select></label><label class="qb-options-wrap ${['radio','checkbox'].includes(q.type)?'':'hidden'}">ตัวเลือก (คั่นด้วย |)<input class="qb-options" value="${escapeHtml((q.options || []).join(' | '))}" placeholder="เป็น | ไม่เป็น"></label><label class="inline-check"><input class="qb-required" type="checkbox" ${q.required?'checked':''}> บังคับตอบ</label><button type="button" class="danger" onclick="this.closest('.question-builder-row').remove()">ลบข้อนี้</button>`;
+  box.innerHTML = `<label>คำถาม<input class="qb-label" value="${escapeHtml(q.label || '')}" placeholder="เช่น เป็นเทคโนโลยีหรือไม่"></label><label>ชนิด<select class="qb-type" onchange="this.closest('.question-builder-row').querySelector('.qb-options-wrap').classList.toggle('hidden', !['radio','checkbox'].includes(this.value))"><option value="short" ${q.type==='short'?'selected':''}>ข้อความสั้น</option><option value="long" ${!q.type||q.type==='long'?'selected':''}>ข้อความยาว</option><option value="radio" ${q.type==='radio'?'selected':''}>เลือกได้ 1 คำตอบ</option><option value="checkbox" ${q.type==='checkbox'?'selected':''}>เลือกได้หลายคำตอบ</option><option value="number" ${q.type==='number'?'selected':''}>ตัวเลข</option><option value="file" ${q.type==='file'?'selected':''}>แนบไฟล์</option></select></label><label class="qb-options-wrap ${['radio','checkbox'].includes(q.type)?'':'hidden'}">ตัวเลือก (คั่นด้วย |)<input class="qb-options" value="${escapeHtml((q.options || []).join(' | '))}" placeholder="เป็น | ไม่เป็น"></label><label class="qb-worksheet-url">ไฟล์ใบงานคำถามย่อย (ไม่บังคับ)<input class="qb-worksheet-url-input" value="${escapeHtml(q.worksheetURL || q.WorksheetURL || '')}" placeholder="https://drive.google.com/..."></label><label class="inline-check"><input class="qb-required" type="checkbox" ${q.required?'checked':''}> บังคับตอบ</label><button type="button" class="danger" onclick="this.closest('.question-builder-row').remove()">ลบข้อนี้</button>`;
   $('aeQuestions')?.appendChild(box);
 }
 
 async function saveAssignmentEditor(assignmentId='') {
   const classes = Array.from(document.querySelectorAll('[name="assignmentClass"]:checked')).map(x => x.value);
   const mode = $('aeMode').value;
-  const questions = Array.from(document.querySelectorAll('.question-builder-row')).map(row => ({ id: row.dataset.questionId, label: row.querySelector('.qb-label').value.trim(), type: row.querySelector('.qb-type').value, options: row.querySelector('.qb-options').value.split('|').map(x => x.trim()).filter(Boolean), required: row.querySelector('.qb-required').checked }));
+  const questions = Array.from(document.querySelectorAll('.question-builder-row')).map(row => ({ id: row.dataset.questionId, label: row.querySelector('.qb-label').value.trim(), type: row.querySelector('.qb-type').value, options: row.querySelector('.qb-options').value.split('|').map(x => x.trim()).filter(Boolean), worksheetURL: row.querySelector('.qb-worksheet-url-input')?.value.trim() || '', required: row.querySelector('.qb-required').checked }));
   const existingAssignment = assignmentId ? getAssignment(assignmentId) : null;
   const workType = $('aeWorkType').value;
   const assignment = { Level: $('aeLevel').value, Topic: $('aeTopic').value.trim(), FullScore: $('aeFullScore').value, WorkType: workType, GroupMode: workType === 'งานเดี่ยว' ? 'ไม่ใช้กลุ่ม' : $('aeGroupMode').value, MaxGroupMembers: workType === 'งานเดี่ยว' ? '' : $('aeMaxGroupMembers').value, AssignedClasses: classes.join(','), Description: $('aeDescription').value.trim(), WorksheetURL: $('aeWorksheetURL').value.trim(), WorksheetVisible: true, AssignmentMode: mode, InstructionType: mode === 'ใบงานออนไลน์' ? 'ใบงานออนไลน์' : ($('aeWorksheetURL').value.trim() ? 'ข้อความและไฟล์' : 'ข้อความ'), WorksheetSchema: mode === 'ใบงานออนไลน์' ? JSON.stringify({version:1, questions}) : '' };
@@ -1605,6 +1611,11 @@ function renderSettingsPage() {
   $('content').innerHTML = `
     <div class="settings-grid">
       ${renderThemeSettingsCard(user, false)}
+      <div class="system-card">
+        <h3>จัดการงานซ้ำ</h3>
+        <p>ตรวจสอบรายการส่งงานซ้ำและเลือกจัดการรายการที่พบ</p>
+        <div class="detail-actions"><button onclick="switchPage('duplicates')">เปิดหน้าจัดการงานซ้ำ</button></div>
+      </div>
       <div class="system-card system-card-wide">
         <h3>ดึงงานเก่าจากระบบเดิม</h3>
         <p>ใช้สำหรับนำข้อมูลงานที่นักเรียนเคยส่งในระบบเดิมมาเก็บรวมในชีต <b>Submissions</b> ของ V2</p>
@@ -1648,7 +1659,7 @@ function renderSettingsPage() {
 }
 
 function renderDuplicateManagerPage() {
-  $('pageToolbar').innerHTML = `<button onclick="loadDuplicateSubmissions()">ตรวจหางานซ้ำ</button><button onclick="loadDuplicateSubmissions()">รีเฟรช</button><button onclick="repairDuplicateSubmissionIds()">ซ่อมรหัสงานที่ซ้ำ</button>`;
+  $('pageToolbar').innerHTML = `<button onclick="switchPage('settings')">กลับไปที่อื่นๆ</button><button onclick="loadDuplicateSubmissions()">ตรวจหางานซ้ำ</button><button onclick="loadDuplicateSubmissions()">รีเฟรช</button><button onclick="repairDuplicateSubmissionIds()">ซ่อมรหัสงานที่ซ้ำ</button>`;
   syncToolbarHeight();
   loadDuplicateSubmissions();
 }
